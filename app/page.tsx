@@ -1,6 +1,9 @@
 "use client"
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { FormInput } from '@/components/forms/FormInput';
+import Image from 'next/image';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface RegisterResponse {
   status: boolean;
@@ -16,6 +19,13 @@ interface RegisterResponse {
   }
 }
 
+// First, add a helper function at the top of your component
+const validateImageFile = (file: File | null): boolean => {
+  if (!file) return false;
+  const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/svg+xml'];
+  return validTypes.includes(file.type);
+};
+
 export default function Register() {
   const router = useRouter();
   const [formData, setFormData] = useState({
@@ -23,22 +33,47 @@ export default function Register() {
     gender: '',
     alamat: '',
     telepon: '',
-    foto: '',
     username: '',
-    password: ''
+    password: '',
+    foto: null as File | null
   });
   const [loading, setLoading] = useState(false);
-  const [notification, setNotification] = useState({ show: false, message: '', type: '' });
-  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [fileError, setFileError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
+    setFileError('');
+
+    // Form validation
+    if (!formData.nama_nasabah || !formData.gender || !formData.alamat ||
+      !formData.telepon || !formData.username || !formData.password) {
+      setError('Please fill in all required fields');
+      setLoading(false);
+      return;
+    }
+
+    // Validate image before submitting
+    const foto = formData.foto;
+    if (!foto || !validateImageFile(foto)) {
+      setFileError('Please upload a valid image file (JPEG, PNG, JPG, GIF, or SVG)');
+      setLoading(false);
+      return;
+    }
+
+    // Show loading toast
+    const loadingToast = toast.loading('Creating your account...');
 
     try {
       const formDataToSend = new FormData();
       Object.entries(formData).forEach(([key, value]) => {
-        formDataToSend.append(key, value);
+        if (key === 'foto' && value instanceof File) {
+          formDataToSend.append('foto', value);
+        } else if (key !== 'foto') {
+          formDataToSend.append(key, value as string);
+        }
       });
 
       const response = await fetch('https://learn.smktelkom-mlg.sch.id/ukl1/api/register', {
@@ -46,171 +81,229 @@ export default function Register() {
         body: formDataToSend,
       });
 
-      const result: RegisterResponse = await response.json();
+      const data: RegisterResponse = await response.json();
 
-      if (response.ok && result.status) {
-        setNotification({
-          show: true,
-          message: result.message || 'Registration successful!',
-          type: 'success'
+      // Dismiss loading toast
+      toast.dismiss(loadingToast);
+
+      if (data.status) {
+        // Show success notification
+        toast.success('Account created successfully! Redirecting...', {
+          duration: 3000
         });
-        router.push('/login');
+
+        // Redirect after a short delay
+        setTimeout(() => {
+          router.push('/login');
+        }, 2000);
       } else {
-        setNotification({
-          show: true,
-          message: result.message || 'Registration failed.',
-          type: 'error'
-        });
+        // Show error notification
+        toast.error(data.message || 'Registration failed');
+        setError(data.message || 'Registration failed');
       }
-    } catch (error) {
-      setNotification({
-        show: true,
-        message: 'Network error occurred.',
-        type: 'error'
-      });
+    } catch (err) {
+      // Dismiss loading toast and show error
+      toast.dismiss(loadingToast);
+      toast.error('An error occurred during registration');
+      setError('An error occurred during registration');
     } finally {
       setLoading(false);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFormData({ ...formData, foto: e.target.files[0] });
+    const file = e.target.files?.[0] || null;
+    setFileError('');
+
+    if (file && !validateImageFile(file)) {
+      setFileError('Please upload a valid image file (JPEG, PNG, JPG, GIF, or SVG)');
+      e.target.value = ''; // Reset file input
+      return;
     }
+
+    setFormData({ ...formData, foto: file });
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white p-6">
-      <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-8"> {/* Changed from max-w-md to max-w-2xl */}
-        <h1 className="text-3xl font-bold text-blue-700 mb-8 text-center">Register Nasabah</h1> {/* Increased text size and margin */}
+    <div className="min-h-screen bg-gradient-to-br from-sky-100 via-blue-200 to-sky-300 flex items-center justify-center py-6">
+      <Toaster position="top-center" reverseOrder={false} />
 
-        {notification.show && (
-          <div className={`p-4 mb-6 rounded-lg text-center ${notification.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-            {notification.message}
-          </div>
-        )}
+      <div className="absolute inset-0 bg-grid-sky-100 [mask-image:linear-gradient(0deg,transparent,black)] opacity-20 pointer-events-none" />
 
-        <form onSubmit={handleSubmit} className="space-y-6"> {/* Increased spacing between form elements */}
-          <div className="grid grid-cols-2 gap-6"> {/* Added grid layout for two columns */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nama Nasabah</label>
-              <input
-                type="text"
-                className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2.5"
-                required
-                onChange={(e) => setFormData({ ...formData, nama_nasabah: e.target.value })}
-              />
-            </div>
+      <div className="relative w-full max-w-2xl mx-auto px-4">
+        <div className="text-center mb-6"> {/* Reduced margin */}
+          <h2 className="text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-sky-600 to-blue-600">
+            Create your account
+          </h2>
+          <p className="mt-2 text-sm text-sky-800/90"> {/* Reduced margin */}
+            Join us and experience seamless banking services
+          </p>
+        </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-              <select
-                className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2.5"
-                required
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-              >
-                <option value="">Pilih Gender</option>
-                <option value="Laki-laki">Laki-laki</option>
-                <option value="Perempuan">Perempuan</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Alamat</label>
-            <textarea
-              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2.5"
-              rows={3}
-              required
-              onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-6"> {/* Added grid layout for two columns */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Telepon</label>
-              <input
-                type="number"
-                className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2.5"
-                required
-                onChange={(e) => setFormData({ ...formData, telepon: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Foto</label>
-              <input
-                type="file"
-                className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                accept="image/*"
-                onChange={handleFileChange}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-6"> {/* Added grid layout for two columns */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-              <input
-                type="text"
-                className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2.5"
-                required
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2.5"
-                  required
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                />
-                <button
-                  type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-blue-600 hover:text-blue-800"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    // Hide password icon
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
-                    </svg>
-                  ) : (
-                    // Show password icon
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  )}
-                </button>
+        <div className="bg-white/95 backdrop-blur-xl py-8 px-8 shadow-2xl sm:rounded-2xl border border-sky-100/50">
+          {error && (
+            <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-r-lg">
+              <div className="flex items-center">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <span className="ml-2 text-sm font-medium text-red-700">{error}</span>
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="flex flex-col space-y-4">
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              {loading ? 'Processing...' : 'Register'}
-            </button>
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            <div className="grid grid-cols-2 gap-6">
+              {/* Left Column */}
+              <div className="space-y-6">
+                <FormInput
+                  label="Nama Nasabah"
+                  required
+                  placeholder="Enter your full name"
+                  value={formData.nama_nasabah}
+                  onChange={(e) => setFormData({ ...formData, nama_nasabah: e.target.value })}
+                />
 
-            <div className="text-center">
-              <span className="text-sm text-gray-600">Already have an account? </span>
+                <div>
+                  <label className="block text-sm font-medium text-sky-800 mb-2">
+                    Gender <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    className="w-full px-4 py-2.5 rounded-lg border border-sky-200 
+                             bg-white/80 backdrop-blur-sm shadow-sm
+                             text-sky-900 placeholder:text-sky-400/70
+                             transition-all duration-200
+                             focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20
+                             hover:border-sky-300"
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    required
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="Laki-laki">Laki-laki</option>
+                    <option value="Perempuan">Perempuan</option>
+                  </select>
+                </div>
+
+                <FormInput
+                  label="Telepon"
+                  type="number"
+                  required
+                  placeholder="Enter your phone number"
+                  value={formData.telepon}
+                  onChange={(e) => setFormData({ ...formData, telepon: e.target.value })}
+                />
+              </div>
+
+              {/* Right Column */}
+              <div className="space-y-6">
+                <FormInput
+                  label="Username"
+                  required
+                  placeholder="Choose a username"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                />
+
+                <FormInput
+                  label="Password"
+                  type="password"
+                  required
+                  placeholder="Enter your password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                />
+
+                <div>
+                  <label className="block text-sm font-medium text-sky-800 mb-2">
+                    Profile Photo <span className="text-red-500">*</span>
+                  </label>
+                  <div className="mt-1 flex flex-col">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/jpg,image/gif,image/svg+xml"
+                      onChange={handleFileChange}
+                      className="w-full px-4 py-2.5 rounded-lg border border-sky-200 
+                               bg-white/80 backdrop-blur-sm shadow-sm
+                               text-sky-900 file:mr-4 file:py-2 file:px-4
+                               file:rounded-md file:border-0
+                               file:text-sm file:font-medium
+                               file:bg-sky-50 file:text-sky-700
+                               hover:file:bg-sky-100
+                               transition-all duration-200
+                               focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20
+                               hover:border-sky-300"
+                      required
+                    />
+                    {fileError && (
+                      <p className="mt-1 text-sm text-red-500">{fileError}</p>
+                    )}
+                    <p className="mt-1 text-xs text-sky-600">
+                      Accepted formats: JPEG, PNG, JPG, GIF, SVG
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Full Width Textarea */}
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-sky-800 mb-2">
+                Alamat <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                className="w-full px-4 py-2.5 rounded-lg border border-sky-200 
+                         bg-white/80 backdrop-blur-sm shadow-sm
+                         text-sky-900 placeholder:text-sky-400/70
+                         transition-all duration-200
+                         focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20
+                         hover:border-sky-300"
+                rows={3}
+                placeholder="Enter your address"
+                value={formData.alamat}
+                onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="pt-6">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 
+                         rounded-lg text-sm font-medium text-white
+                         bg-gradient-to-r from-sky-500 to-blue-600 
+                         hover:from-sky-600 hover:to-blue-700
+                         focus:outline-none focus:ring-2 focus:ring-offset-2 
+                         focus:ring-sky-500 disabled:opacity-50 
+                         transition-all duration-200
+                         shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                {loading ? (
+                  <div className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </div>
+                ) : 'Create Account'}
+              </button>
+            </div>
+
+            <div className="pt-4 text-center text-sm">
+              <span className="text-sky-700">Already have an account? </span>
               <button
                 type="button"
                 onClick={() => router.push('/login')}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                className="font-medium text-blue-600 hover:text-blue-500 
+                         transition-colors duration-200 hover:underline"
               >
-                Login here
+                Sign in
               </button>
             </div>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );
