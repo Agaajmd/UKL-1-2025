@@ -16,8 +16,6 @@ type Props = {
     onClose: () => void;
 }
 
-const API_URL = 'https://learn.smktelkom-mlg.sch.id/ukl1/api';
-
 export default function EditProfileModal({ item, onClose }: Props) {
     const [nama_pelanggan, setNamaPelanggan] = useState<string>(item.nama_pelanggan);
     const [alamat, setAlamat] = useState<string>(item.alamat);
@@ -39,14 +37,13 @@ export default function EditProfileModal({ item, onClose }: Props) {
 
         try {
             const formData = new URLSearchParams();
-            // Include ID in update request
             formData.append('id', item.id);
             formData.append('nama_pelanggan', nama_pelanggan);
             formData.append('alamat', alamat);
             formData.append('gender', gender);
             formData.append('telepon', telepon);
 
-            const response = await fetch(`${API_URL}/update/${item.id}`, {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/update/${item.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -59,13 +56,12 @@ export default function EditProfileModal({ item, onClose }: Props) {
             if (result.status) {
                 toast.success(result.message || 'Profile updated successfully!');
                 closeModal();
-                // Refresh the page to show updated data
                 setTimeout(() => router.refresh(), 1000);
             } else {
                 throw new Error(result.message || 'Update failed');
             }
-        } catch (error) {
-            console.error(error);
+        } catch (err) {
+            console.error('Update failed:', err);
             toast.error('Failed to update profile');
         } finally {
             toast.dismiss(loadingToast);
@@ -76,15 +72,17 @@ export default function EditProfileModal({ item, onClose }: Props) {
     if (!show) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-0">
             <Toaster position="top-center" />
 
-            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
-                <div className="p-6">
-                    <h3 className="text-xl font-semibold text-sky-900 mb-4">
+            <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-[min(90vw,28rem)] max-h-[85vh] overflow-y-auto">
+                <div className="p-4 sm:p-6">
+                    <h3 className="text-lg sm:text-xl font-semibold text-sky-900 mb-4">
                         Edit Profile
                     </h3>
+
                     <form onSubmit={handleSubmit} className="space-y-4">
+                        {/* Form Fields */}
                         <div>
                             <label className="block text-sm font-medium text-sky-800 mb-1">
                                 Nama Pelanggan
@@ -92,7 +90,7 @@ export default function EditProfileModal({ item, onClose }: Props) {
                             <input
                                 type="text"
                                 maxLength={255}
-                                className="w-full px-3 py-2 rounded-lg border border-sky-200 
+                                className="w-full px-3 py-2 text-base sm:text-sm rounded-lg border border-sky-200 
                                          focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                                 required
                                 value={nama_pelanggan}
@@ -100,12 +98,13 @@ export default function EditProfileModal({ item, onClose }: Props) {
                             />
                         </div>
 
+                        {/* Gender Select */}
                         <div>
                             <label className="block text-sm font-medium text-sky-800 mb-1">
                                 Gender
                             </label>
                             <select
-                                className="w-full px-3 py-2 rounded-lg border border-sky-200 
+                                className="w-full px-3 py-2 text-base sm:text-sm rounded-lg border border-sky-200 
                                          focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                                 required
                                 value={gender}
@@ -116,12 +115,13 @@ export default function EditProfileModal({ item, onClose }: Props) {
                             </select>
                         </div>
 
+                        {/* Address Textarea */}
                         <div>
                             <label className="block text-sm font-medium text-sky-800 mb-1">
                                 Alamat
                             </label>
                             <textarea
-                                className="w-full px-3 py-2 rounded-lg border border-sky-200 
+                                className="w-full px-3 py-2 text-base sm:text-sm rounded-lg border border-sky-200 
                                          focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                                 rows={3}
                                 required
@@ -130,14 +130,15 @@ export default function EditProfileModal({ item, onClose }: Props) {
                             />
                         </div>
 
+                        {/* Phone Input */}
                         <div>
                             <label className="block text-sm font-medium text-sky-800 mb-1">
                                 Telepon
                             </label>
                             <input
                                 type="tel"
-                                maxLength={20}
-                                className="w-full px-3 py-2 rounded-lg border border-sky-200 
+                                maxLength={15}
+                                className="w-full px-3 py-2 text-base sm:text-sm rounded-lg border border-sky-200 
                                          focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                                 required
                                 value={telepon}
@@ -146,18 +147,20 @@ export default function EditProfileModal({ item, onClose }: Props) {
                             />
                         </div>
 
-                        <div className="flex justify-end space-x-3 mt-6">
+                        {/* Buttons */}
+                        <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 mt-6">
                             <button
                                 type="button"
                                 onClick={closeModal}
-                                className="px-4 py-2 text-sm font-medium text-sky-700 hover:text-sky-800"
+                                className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-sky-700 hover:text-sky-800
+                                         border border-sky-200 rounded-lg hover:bg-sky-50"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="px-4 py-2 text-sm font-medium text-white
+                                className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white
                                          bg-gradient-to-r from-sky-500 to-blue-600 
                                          hover:from-sky-600 hover:to-blue-700
                                          rounded-lg shadow-md hover:shadow-lg

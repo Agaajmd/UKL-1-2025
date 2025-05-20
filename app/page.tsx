@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FormInput } from '@/components/forms/FormInput';
-import Image from 'next/image';
 import toast, { Toaster } from 'react-hot-toast';
 
 interface RegisterResponse {
@@ -26,6 +25,90 @@ const validateImageFile = (file: File | null): boolean => {
   return validTypes.includes(file.type);
 };
 
+// Add this helper function at the top of your file
+const isStrongPassword = (password: string): boolean => {
+  const hasMinLength = password.length >= 8;
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+  return hasMinLength && hasUpperCase && hasLowerCase && hasNumber && hasSymbol;
+};
+
+// Add these validation functions at the top of your file, before the Register component
+const validateForm = (formData: {
+  nama_nasabah: string;
+  gender: string;
+  alamat: string;
+  telepon: string;
+  username: string;
+  password: string;
+  foto: File | null;
+}) => {
+  const errors: { [key: string]: string } = {};
+
+  // Validate nama_nasabah (max 255 characters)
+  if (!formData.nama_nasabah) {
+    errors.nama_nasabah = 'Nama nasabah is required';
+  } else if (formData.nama_nasabah.length > 255) {
+    errors.nama_nasabah = 'Nama nasabah cannot exceed 255 characters';
+  }
+
+  // Validate gender (enum check)
+  if (!formData.gender) {
+    errors.gender = 'Gender is required';
+  } else if (!['Laki-laki', 'Perempuan'].includes(formData.gender)) {
+    errors.gender = 'Invalid gender selection';
+  }
+
+  // Validate alamat (required text)
+  if (!formData.alamat.trim()) {
+    errors.alamat = 'Alamat is required';
+  }
+
+  // Validate telepon (max 20 characters, numbers only)
+  if (!formData.telepon) {
+    errors.telepon = 'Telepon is required';
+  } else if (formData.telepon.length > 20) {
+    errors.telepon = 'Telepon number cannot exceed 20 characters';
+  } else if (!/^\d+$/.test(formData.telepon)) {
+    errors.telepon = 'Telepon must contain numbers only';
+  }
+
+  // Validate username (max 255 characters)
+  if (!formData.username) {
+    errors.username = 'Username is required';
+  } else if (formData.username.length > 255) {
+    errors.username = 'Username cannot exceed 255 characters';
+  }
+
+  // Updated password validation
+  if (!formData.password) {
+    errors.password = 'Password is required';
+  } else if (!isStrongPassword(formData.password)) {
+    errors.password = 'Password must contain at least 8 characters, including uppercase and lowercase letters, numbers, and symbols';
+  } else if (formData.password.length > 255) {
+    errors.password = 'Password cannot exceed 255 characters';
+  }
+
+  // Validate foto
+  if (!formData.foto) {
+    errors.foto = 'Profile photo is required';
+  } else {
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/svg+xml'];
+    if (!validTypes.includes(formData.foto.type)) {
+      errors.foto = 'Invalid file type. Please upload a valid image (JPEG, PNG, JPG, GIF, or SVG)';
+    }
+    // Check file size (e.g., max 2MB)
+    if (formData.foto.size > 2 * 1024 * 1024) {
+      errors.foto = 'File size must not exceed 2MB';
+    }
+  }
+
+  return errors;
+};
+
 export default function Register() {
   const router = useRouter();
   const [formData, setFormData] = useState({
@@ -47,23 +130,13 @@ export default function Register() {
     setError('');
     setFileError('');
 
-    // Form validation
-    if (!formData.nama_nasabah || !formData.gender || !formData.alamat ||
-      !formData.telepon || !formData.username || !formData.password) {
-      setError('Please fill in all required fields');
+    const validationErrors = validateForm(formData);
+    if (Object.keys(validationErrors).length > 0) {
+      setError(Object.values(validationErrors).join('\n'));
       setLoading(false);
       return;
     }
 
-    // Validate image before submitting
-    const foto = formData.foto;
-    if (!foto || !validateImageFile(foto)) {
-      setFileError('Please upload a valid image file (JPEG, PNG, JPG, GIF, or SVG)');
-      setLoading(false);
-      return;
-    }
-
-    // Show loading toast
     const loadingToast = toast.loading('Creating your account...');
 
     try {
@@ -76,36 +149,27 @@ export default function Register() {
         }
       });
 
-      const response = await fetch('https://learn.smktelkom-mlg.sch.id/ukl1/api/register', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/register`, {
         method: 'POST',
         body: formDataToSend,
       });
 
       const data: RegisterResponse = await response.json();
-
-      // Dismiss loading toast
       toast.dismiss(loadingToast);
 
       if (data.status) {
-        // Show success notification
         toast.success('Account created successfully! Redirecting...', {
           duration: 3000
         });
-
-        // Redirect after a short delay
-        setTimeout(() => {
-          router.push('/login');
-        }, 2000);
+        setTimeout(() => router.push('/login'), 2000);
       } else {
-        // Show error notification
-        toast.error(data.message || 'Registration failed');
-        setError(data.message || 'Registration failed');
+        throw new Error(data.message || 'Registration failed');
       }
-    } catch (err) {
-      // Dismiss loading toast and show error
+    } catch (error) { // Changed from err to error and using it
+      console.error('Registration error:', error);
       toast.dismiss(loadingToast);
-      toast.error('An error occurred during registration');
-      setError('An error occurred during registration');
+      toast.error(error instanceof Error ? error.message : 'An error occurred during registration');
+      setError(error instanceof Error ? error.message : 'An error occurred during registration');
     } finally {
       setLoading(false);
     }
@@ -125,22 +189,22 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-100 via-blue-200 to-sky-300 flex items-center justify-center py-6">
+    <div className="min-h-screen bg-gradient-to-br from-sky-100 via-blue-200 to-sky-300 flex items-center justify-center py-6 px-4 sm:px-6">
       <Toaster position="top-center" reverseOrder={false} />
 
       <div className="absolute inset-0 bg-grid-sky-100 [mask-image:linear-gradient(0deg,transparent,black)] opacity-20 pointer-events-none" />
 
-      <div className="relative w-full max-w-2xl mx-auto px-4">
-        <div className="text-center mb-6"> {/* Reduced margin */}
-          <h2 className="text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-sky-600 to-blue-600">
+      <div className="relative w-full max-w-2xl mx-auto">
+        <div className="text-center mb-4 sm:mb-6">
+          <h2 className="text-3xl sm:text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-sky-600 to-blue-600">
             Create your account
           </h2>
-          <p className="mt-2 text-sm text-sky-800/90"> {/* Reduced margin */}
+          <p className="mt-2 text-sm text-sky-800/90">
             Join us and experience seamless banking services
           </p>
         </div>
 
-        <div className="bg-white/95 backdrop-blur-xl py-8 px-8 shadow-2xl sm:rounded-2xl border border-sky-100/50">
+        <div className="bg-white/95 backdrop-blur-xl py-6 sm:py-8 px-4 sm:px-8 shadow-2xl rounded-xl sm:rounded-2xl border border-sky-100/50">
           {error && (
             <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-r-lg">
               <div className="flex items-center">
@@ -152,10 +216,10 @@ export default function Register() {
             </div>
           )}
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="grid grid-cols-2 gap-6">
+          <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {/* Left Column */}
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <FormInput
                   label="Nama Nasabah"
                   required
@@ -196,7 +260,7 @@ export default function Register() {
               </div>
 
               {/* Right Column */}
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <FormInput
                   label="Username"
                   required
@@ -247,7 +311,7 @@ export default function Register() {
             </div>
 
             {/* Full Width Textarea */}
-            <div className="col-span-2">
+            <div className="col-span-full">
               <label className="block text-sm font-medium text-sky-800 mb-2">
                 Alamat <span className="text-red-500">*</span>
               </label>
@@ -266,11 +330,11 @@ export default function Register() {
               />
             </div>
 
-            <div className="pt-6">
+            <div className="pt-4 sm:pt-6">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex justify-center py-3 px-4 
+                className="w-full flex justify-center py-2.5 sm:py-3 px-4 
                          rounded-lg text-sm font-medium text-white
                          bg-gradient-to-r from-sky-500 to-blue-600 
                          hover:from-sky-600 hover:to-blue-700

@@ -2,8 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FormInput } from '@/components/forms/FormInput';
-import Image from 'next/image';
-import toast, { Toaster } from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast'; // Removed unused Image import
 
 export default function Login() {
     const router = useRouter();
@@ -13,17 +12,15 @@ export default function Login() {
     });
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-    const [error, setError] = useState('');
+    const [errorMessage, setErrorMessage] = useState(''); // Renamed from error to errorMessage
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setLoading(true);
-
-        // Show loading toast
         const loadingToast = toast.loading('Signing in...');
 
         try {
-            const response = await fetch('https://learn.smktelkom-mlg.sch.id/ukl1/api/login', {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -35,8 +32,6 @@ export default function Login() {
             });
 
             const result = await response.json();
-
-            // Dismiss loading toast
             toast.dismiss(loadingToast);
 
             if (result.status) {
@@ -47,27 +42,27 @@ export default function Login() {
                 toast.success('Login successful! Redirecting...');
                 router.push('/dashboard');
             } else {
-                toast.error(result.message || 'Invalid username or password');
-                setError(result.message || 'Invalid username or password');
+                throw new Error(result.message || 'Invalid username or password');
             }
-        } catch (error) {
+        } catch (err) {
             toast.dismiss(loadingToast);
-            toast.error('Network error. Please try again.');
-            setError('Network error. Please try again.');
+            const message = err instanceof Error ? err.message : 'Network error. Please try again.';
+            toast.error(message);
+            setErrorMessage(message);
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-sky-100 via-blue-200 to-sky-300 flex items-center justify-center">
+        <div className="min-h-screen bg-gradient-to-br from-sky-100 via-blue-200 to-sky-300 flex items-center justify-center p-4">
             <Toaster position="top-center" reverseOrder={false} />
 
             <div className="absolute inset-0 bg-grid-sky-100 [mask-image:linear-gradient(0deg,transparent,black)] opacity-20 pointer-events-none" />
 
-            <div className="relative w-full max-w-md mx-auto px-4">
-                <div className="text-center mb-8">
-                    <h2 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-sky-600 to-blue-600">
+            <div className="relative w-full max-w-md mx-auto">
+                <div className="text-center mb-6 sm:mb-8">
+                    <h2 className="text-2xl sm:text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-sky-600 to-blue-600">
                         Welcome Back!
                     </h2>
                     <p className="mt-2 text-sm text-sky-800/90">
@@ -75,19 +70,19 @@ export default function Login() {
                     </p>
                 </div>
 
-                <div className="bg-white/95 backdrop-blur-xl py-8 px-8 shadow-2xl sm:rounded-2xl border border-sky-100/50">
-                    {error && (
+                <div className="bg-white/95 backdrop-blur-xl py-6 sm:py-8 px-6 sm:px-8 shadow-2xl rounded-xl sm:rounded-2xl border border-sky-100/50">
+                    {errorMessage && (
                         <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-r-lg">
                             <div className="flex items-center">
                                 <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                                 </svg>
-                                <span className="ml-2 text-sm font-medium text-red-700">{error}</span>
+                                <span className="ml-2 text-sm font-medium text-red-700">{errorMessage}</span>
                             </div>
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
+                    <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
                         <FormInput
                             label="Username"
                             value={formData.username}
@@ -133,11 +128,11 @@ export default function Login() {
                             </div>
                         </div>
 
-                        <div className="pt-6">
+                        <div className="pt-4 sm:pt-6">
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full flex justify-center py-3 px-4 
+                                className="w-full flex justify-center py-2.5 sm:py-3 px-4 
                                          rounded-lg text-sm font-medium text-white
                                          bg-gradient-to-r from-sky-500 to-blue-600 
                                          hover:from-sky-600 hover:to-blue-700
@@ -159,7 +154,7 @@ export default function Login() {
                         </div>
 
                         <div className="pt-4 text-center text-sm">
-                            <span className="text-sky-700">Don't have an account? </span>
+                            <span className="text-sky-700">Don&apos;t have an account? </span>
                             <button
                                 type="button"
                                 onClick={() => router.push('/')}
